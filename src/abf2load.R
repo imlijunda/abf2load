@@ -265,7 +265,13 @@ abf2.load = function ( filename )
         # gap-free
         result$NumOfChannel = ch.Num
         result$PointsPerChannel = result$SectionInfo$Data$llNumEntries / NumOfChannel
-        result$data = matrix(rawdata, nrow = result$NumOfChannel)
+        data = matrix(rawdata, nrow = result$NumOfChannel)
+        # scale data if needed
+        if (rawdata.type == "integer")
+          for (i in 1:result$NumOfChannel)
+            for (j in 1:result$PointsPerChannel)
+                data[i, j] = data[i, j] / scale[j] * resol + offset[j]
+        result$data = data
     }
     else
     {
