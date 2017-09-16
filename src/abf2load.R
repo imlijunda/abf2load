@@ -243,6 +243,22 @@ abf2.load = function ( filename )
         result$ChannelPerEpisode = chPerEpi
         result$PointsPerChannel = ptsPerCh
         result$data = data
+        
+        # arrange data by channel
+        ByChannel = list()
+        for (i in 1:chPerEpi)
+        {
+          tmp = data[, i, ]
+          tmpdf = data.frame(tmp)
+          cols = c()
+          for (j in 1:numEpi)
+          {
+            cols[j] = paste("epi", j, sep = "")
+          }
+          colnames(tmpdf)=cols
+          ByChannel[[i]] = tmpdf
+        }
+        result$ByChannel = ByChannel
     }
     else if (op.Mode == 3)
     {
