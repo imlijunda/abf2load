@@ -203,6 +203,9 @@ abf2.load = function ( filename )
             offset[i] = result$Sections$ADC["fInstrumentOffset", i] - result$Sections$ADC["fSignalOffset", i]
         }
     }
+    # sampling time interval
+    result$SampleInterval_s = result$Sections$Protocol["fADCSequenceInterval", 1] * 1e-6
+    result$SampleInterval_ms = result$Sections$Protocol["fADCSequenceInterval", 1] * 1e-3
 
     op.Mode = result$Sections$Protocol["nOperationMode", 1]
     if (op.Mode == 1)
@@ -259,6 +262,10 @@ abf2.load = function ( filename )
           ByChannel[[i]] = tmpdf
         }
         result$ByChannel = ByChannel
+        
+        # make a x vector
+        result$X_s = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_s)
+        result$X_ms = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_ms)
     }
     else if (op.Mode == 3)
     {
