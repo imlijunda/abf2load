@@ -105,6 +105,8 @@ abf2.struct.size = function ( struct.def )
     invisible(size)
 }
 
+# Does R have multiple dispatch?
+
 abf2.load = function ( filename )
 {
     fp = file(filename, "rb")
@@ -287,6 +289,34 @@ abf2.load = function ( filename )
 
     close(fp)
     invisible(result)
+}
+
+abf2.loadfolder = function ( folder, filename )
+{
+  getfilename = function( folder, filename )
+  {
+    fname = ""
+    if ( endsWith(folder, "/") )
+      fname = paste(folder, filename, sep = "")
+    else
+      fname = paste(folder, "/", filename, sep = "")
+    if ( !endsWith(fname, ".abf") )
+      fname = paste(fname, ".abf", sep = "")
+    
+    invisible(fname)
+  }
+  
+  n = length(filename)
+  result = list()
+  for (i in 1:n)
+  {
+    # filename can be any type ... a vector, a list etc. I'm not sure if [[]] is suitable for all cases
+    # Is there any type hint in R?!
+    fname = getfilename(folder, filename[[i]])
+    result[[i]] = abf2.load(fname)
+  }
+  
+  invisible(result)
 }
 
 abf2.load.section = function (fp, sect.info, sect.def)
