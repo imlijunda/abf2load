@@ -58,12 +58,9 @@ alldatachannel[[6]] = episode.remove(alldatachannel[[6]], c(1))
 plot.new()
 par(mfrow = c(np, np))
 #plot all voltage plot
-rawdata = abf2.loadfolder(folder, unlist(selected[, "FileName"]))
 par(mar=c(2,2,2,2))
 for (i in 1:nselected)
 {
   xyinfo = abf2.xy_info(rawdata[[i]])
   abf2.plot_channel(alldatachannel[[i]], 2, xyinfo, i)
 }
-
-
