@@ -158,12 +158,26 @@ abf2.load = function ( filename )
     ch.Num = result$SectionInfo$ADC$llNumEntries
     ch.Name = c()
     ch.Unit = c()
+    ch.NameGuess = c()
     for (i in 1:ch.Num)
     {
         ch.Name[i] = result$Sections$Strings[[1 + i*2]]
         ch.Unit[i] = result$Sections$Strings[[2 + i*2]]
+        if (endsWith(ch.Unit[i], "V"))
+        {
+          ch.NameGuess[i] = "Voltage"
+        }
+        else if (endsWith(ch.Unit[i], "A"))
+        {
+          ch.NameGuess[i] = "Current"
+        }
+        else
+        {
+          ch.NameGuess[i] = ch.Name[i]
+        }
     }
     result$ChannelName = ch.Name
+    result$ChannelNameGuess = ch.NameGuess
     result$ChannelUnit = ch.Unit
     # Load data into memory for later use
     rawdata.size = result$SectionInfo$Data$uBytes
@@ -266,6 +280,7 @@ abf2.load = function ( filename )
         result$ByChannel = ByChannel
         
         # make a x vector
+        result$X_ticks = 1:ptsPerCh
         result$X_s = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_s)
         result$X_ms = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_ms)
     }
