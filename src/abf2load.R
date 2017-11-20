@@ -158,12 +158,26 @@ abf2.load = function ( filename )
     ch.Num = result$SectionInfo$ADC$llNumEntries
     ch.Name = c()
     ch.Unit = c()
+    ch.NameGuess = c()
     for (i in 1:ch.Num)
     {
-        ch.Name[i] = result$Sections$Strings[[1 + i*2]]
-        ch.Unit[i] = result$Sections$Strings[[2 + i*2]]
+      ch.Name[i] = result$Sections$Strings[[1 + i*2]]
+      ch.Unit[i] = result$Sections$Strings[[2 + i*2]]
+      if (endsWith(ch.Unit[i], "V"))
+      {
+        ch.NameGuess[i] = "Voltage"
+      }
+      else if (endsWith(ch.Unit[i], "A"))
+      {
+        ch.NameGuess[i] = "Current"
+      }
+      else
+      {
+        ch.NameGuess[i] = ch.Name[i]
+      }
     }
     result$ChannelName = ch.Name
+    result$ChannelNameGuess = ch.NameGuess
     result$ChannelUnit = ch.Unit
     # Load data into memory for later use
     rawdata.size = result$SectionInfo$Data$uBytes
@@ -260,7 +274,7 @@ abf2.load = function ( filename )
           {
             cols[j] = paste("epi", j, sep = "")
           }
-          colnames(tmpdf)=cols
+          colnames(tmpdf) = cols
           ByChannel[[i]] = tmpdf
         }
         result$ByChannel = ByChannel
@@ -273,14 +287,29 @@ abf2.load = function ( filename )
     {
         # gap-free
         result$NumOfChannel = ch.Num
-        result$PointsPerChannel = result$SectionInfo$Data$llNumEntries / NumOfChannel
-        data = matrix(rawdata, nrow = result$NumOfChannel)
+        result$PointsPerChannel = result$SectionInfo$Data$llNumEntries / result$NumOfChannel
+        data = array(dim = c(result$PointsPerChannel, result$NumOfChannel))
+        idx = 0
+        for (i in 1:result$PointsPerChannel)
+          for (j in 1:result$NumOfChannel)
+          {
+              idx = idx + 1
+              data[i, j] = rawdata[idx]
+          }
+          
         # scale data if needed
         if (rawdata.type == "integer")
-          for (i in 1:result$NumOfChannel)
-            for (j in 1:result$PointsPerChannel)
+          for (i in 1:result$PointsPerChannel)
+            for (j in 1:result$NumOfChannel)
                 data[i, j] = data[i, j] / scale[j] * resol + offset[j]
-        result$data = data
+        colnames(data) = result$ChannelNameGuess
+        result$data = data.frame(data)
+
+        # figure out some useful information
+        timespan = result$PointsPerChannel * result$SampleInterval_s
+        result$TimeSpan_s = timespan
+        result$TimeSpan_ms = timespan * 1e3
+        
     }
     else
     {
@@ -889,4 +918,3 @@ ABF2.UserList.ssize = c(0, 0, 0, 0, 0, 52)
 ABF2.UserList.def = data.frame(field = ABF2.UserList.field,
                                ctype = ABF2.UserList.ctype,
                                sszie = ABF2.UserList.ssize)
-
