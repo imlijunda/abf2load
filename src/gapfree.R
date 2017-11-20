@@ -19,6 +19,8 @@ gapfree_pointavg =  function(result, n, time_unit)
   {
     p_start = (i - 1) * n + 1
     p_end = p_start + n - 1
+    if (p_end > l)
+      p_end = l
     df.data[i, 1] = intv * i * n
     df.data[i, 2] = sum(result$data[, "Current"][p_start:p_end]) / n
   }
