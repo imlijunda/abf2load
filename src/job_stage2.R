@@ -41,7 +41,7 @@ vclamp.plot_interval(sample_list[[sampleid]], t, xyinfo[[sampleid]])
 ######Calculate mean V/A values for all samples#######
 voltagemeans = vclamp.channel_mean(sample_list, intervals, 2)
 currentmeans = vclamp.channel_mean(sample_list, intervals, 1)
-combined = vclamp.report_channel_mean(voltagemeans, currentmeans)
+combined = vclamp.combine_channel_mean(voltagemeans, currentmeans)
 
 #add this data frame to processed data
 idx = length(proc_meanVA) + 1
