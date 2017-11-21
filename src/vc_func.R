@@ -267,6 +267,25 @@ vclamp.channel_mean = function(sample_list, intervals, chan_id)
   return(df)
 }
 
+vclamp.individual_channel_mean = function(voltage_mean, current_mean)
+{
+  result = list()
+  n = nrow(voltage_mean)
+  for (i in 1:n)
+  {
+    df = data.frame()
+    for (j in 1:ncol(voltage_mean))
+    {
+      df[j, 1] = voltagemeans[i, j]
+      df[j, 2] = currentmeans[i, j]
+    }
+    colnames(df) <- c("Voltage", "Current")
+    result[[i]] = df
+  }
+
+  return(result)
+}
+
 vclamp.combine_channel_mean = function(voltage_mean, current_mean)
 {
   df = data.frame()
@@ -340,15 +359,18 @@ vclamp.plot_xy_info = function(abfdata, time_unit)
   return(result)
 }
 
-vclamp.plot_channel = function(sample_channels, chan_id, xy_info, plottitle)
+vclamp.plot_channel = function(sample_channels, chan_id, xy_info, plottitle, ymin, ymax)
 {
   data = sample_channels[[chan_id]]
 
   x = xy_info$x
   xlimit = xy_info$xlimit
   xlabel = xy_info$xlabel
-  ymin = min(data)
-  ymax = max(data)
+  if (missing(ymin)||missing(ymax))
+  {
+    ymin = min(data)
+    ymax = max(data)
+  }
   ylimit = c(ymin, ymax)
   ylabel = xy_info$ylabel[[chan_id]]
 
