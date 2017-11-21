@@ -9,7 +9,7 @@ result$data[1:500, 1, 3]
 result$data[ , 2, 6]
 
 # how many channels?
-result$ChannelPerEpisode
+result$ChannelsPerEpisode
 
 # how many episodes?
 result$NumOfEpisodes
@@ -31,7 +31,7 @@ mini = min(result$data[, 1, ])
 # determin axis labels and limits
 xlabel = "Time / ms"
 ylabel = paste("I /", result$ChannelUnit[1])
-#last element in SOMETHING: tail(SOMETHING, n = 1) 
+#last element in SOMETHING: tail(SOMETHING, n = 1)
 xlast = tail(result$X_ms, n = 1)
 xlimit = c(0, xlast)
 ylimit = c(maxi, mini)
