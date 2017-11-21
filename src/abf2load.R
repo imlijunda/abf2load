@@ -6,7 +6,7 @@ sizeof = list()
 # get size by sizeoff[["uint16"]]
 sizeof = setNames(ctypes.bytesize, ctypes.supported)
 
-abf2.struct.read = function ( fp, struct.def, fp.offset=0 )
+.abf2.struct.read = function ( fp, struct.def, fp.offset=0 )
 {
     result = list()
     seek(fp, where=fp.offset, origin = "start")
@@ -89,10 +89,10 @@ abf2.struct.read = function ( fp, struct.def, fp.offset=0 )
     # result$byte.skip = byteskip
     result$byte.total = byteread + byteskip
 
-    invisible(result)
+    return(result)
 }
 
-abf2.struct.size = function ( struct.def )
+.abf2.struct.size = function ( struct.def )
 {
     size = 0
     for ( i in 1:length(struct.def$field))
@@ -102,43 +102,88 @@ abf2.struct.size = function ( struct.def )
         size = size + sizeof[[tp]] + ss
     }
 
-    invisible(size)
+    return(size)
+}
+
+.abf2.load.section = function ( fp, sect.info, sect.def )
+{
+  ptr = sect.info$uBlockIndex * .ABF2.BlockSize
+  if ( ptr == 0 )
+    return(NULL)
+  n = sect.info$llNumEntries
+  m = length(sect.def$field)
+  tmparr = array(dim = c(m, n))
+  for (i in 1:n)
+  {
+    tmp = .abf2.struct.read(fp, sect.def, ptr)
+    ptr = ptr + tmp$byte.total
+    for (j in 1:m)
+    {
+      tmparr[j, i] = tmp[[j]]
+    }
+  }
+  result = data.frame(tmparr, row.names = sect.def$field)
+  colnames(result) = c(1:n)
+  
+  return(result)
+}
+
+.abf2.parseStrSect = function ( rawdata )
+{
+  result = list()
+  offset = 45
+  idx = 0
+  st_ptr = offset
+  for (i in offset:length(rawdata))
+  {
+    if (rawdata[[i]] == 0)
+    {
+      idx = idx + 1
+      result[[idx]] = rawToChar(rawdata[st_ptr:(i-1)])
+      st_ptr = i + 1
+    }
+  }
+  
+  return(result)
 }
 
 # Does R have multiple dispatch?
-
 abf2.load = function ( filename )
 {
     fp = file(filename, "rb")
     result = list()
+    
     # read header
-    result$Header = abf2.struct.read(fp, ABF2.Header.def)
+    result$Header = .abf2.struct.read(fp, .ABF2.Header.def)
     if (result$Header$fFileSignature != "ABF2")
     {
         close(fp)
         stop("Only ABF2 file format is supported.")
     }
+    
     # read section info
     result$SectionInfo = list()
     fptr = result$Header$byte.total
-    for (i in 1:length(ABF2.SectionInfoList))
+    for (i in 1:length(.ABF2.SectionInfoList))
     {
-        SectionName = ABF2.SectionInfoList[[i]]
-        result$SectionInfo[[SectionName]] = abf2.struct.read(fp, ABF2.SectionInfo.def, fp.offset = fptr)
+        SectionName = .ABF2.SectionInfoList[[i]]
+        result$SectionInfo[[SectionName]] = .abf2.struct.read(fp, .ABF2.SectionInfo.def, fp.offset = fptr)
         fptr = fptr + result$SectionInfo[[SectionName]]$byte.total
     }
+    
     # read all known sections
     result$Sections = list()
-    result$Sections$Protocol = abf2.load.section(fp, result$SectionInfo$Protocol, ABF2.Protocol.def)
-    result$Sections$Math = abf2.load.section(fp, result$SectionInfo$Math, ABF2.Math.def)
-    result$Sections$ADC = abf2.load.section(fp, result$SectionInfo$ADC, ABF2.ADC.def)
-    result$Sections$DAC = abf2.load.section(fp, result$SectionInfo$DAC, ABF2.DAC.def)
-    result$Sections$EpochPerDAC = abf2.load.section(fp, result$SectionInfo$EpochPerDAC, ABF2.EpochPerDAC.def)
-    result$Sections$Epoch = abf2.load.section(fp, result$SectionInfo$Epoch, ABF2.Epoch.def)
-    result$Sections$StatsRegion = abf2.load.section(fp, result$SectionInfo$StatsRegion, ABF2.StatsRegion.def)
-    result$Sections$UserList = abf2.load.section(fp, result$SectionInfo$UserList, ABF2.UserList.def)
+    result$Sections$Protocol = .abf2.load.section(fp, result$SectionInfo$Protocol, .ABF2.Protocol.def)
+    result$Sections$Math = .abf2.load.section(fp, result$SectionInfo$Math, .ABF2.Math.def)
+    result$Sections$ADC = .abf2.load.section(fp, result$SectionInfo$ADC, .ABF2.ADC.def)
+    result$Sections$DAC = .abf2.load.section(fp, result$SectionInfo$DAC, .ABF2.DAC.def)
+    result$Sections$EpochPerDAC = .abf2.load.section(fp, result$SectionInfo$EpochPerDAC, .ABF2.EpochPerDAC.def)
+    result$Sections$Epoch = .abf2.load.section(fp, result$SectionInfo$Epoch, .ABF2.Epoch.def)
+    result$Sections$StatsRegion = .abf2.load.section(fp, result$SectionInfo$StatsRegion, .ABF2.StatsRegion.def)
+    result$Sections$UserList = .abf2.load.section(fp, result$SectionInfo$UserList, .ABF2.UserList.def)
+    
     # read strings section
-    fptr = result$SectionInfo$Strings$uBlockIndex * ABF2.BlockSize
+    fptr = result$SectionInfo$Strings$uBlockIndex * .ABF2.BlockSize
     size = result$SectionInfo$Strings$uBytes
     seek(fp, fptr)
     data = c()
@@ -146,7 +191,7 @@ abf2.load = function ( filename )
     {
         data[i] = readBin(fp, what = "raw")
     }
-    result$Sections$Strings = abf2.parseStrSect(data)
+    result$Sections$Strings = .abf2.parseStrSect(data)
     if (length(result$Sections$Strings) != result$SectionInfo$Strings$llNumEntries)
     {
         warning("llNumEntries and actual entries read in Strings section do not match. Please check file integrity.")
@@ -179,6 +224,7 @@ abf2.load = function ( filename )
     result$ChannelName = ch.Name
     result$ChannelNameGuess = ch.NameGuess
     result$ChannelUnit = ch.Unit
+    
     # Load data into memory for later use
     rawdata.size = result$SectionInfo$Data$uBytes
     if (rawdata.size == 2)
@@ -188,15 +234,15 @@ abf2.load = function ( filename )
     else
         stop("Unknown data type")
     rawdata.num = result$SectionInfo$Data$llNumEntries
-    rawdata.ptr = result$SectionInfo$Data$uBlockIndex * ABF2.BlockSize
+    rawdata.ptr = result$SectionInfo$Data$uBlockIndex * .ABF2.BlockSize
     seek(fp, where = rawdata.ptr)
     rawdata = array(dim = c(rawdata.num))
     for (i in 1:rawdata.num)
     {
         rawdata[i] = readBin(fp, what = rawdata.type, size = rawdata.size, signed = TRUE)
     }
-    # result$rawdata = rawdata
-    # caluclate scaling factor if needed
+
+    # caluclate scaling factors for every channel
     if (rawdata.type == "integer")
     {
         resol = result$Sections$Protocol["fADCRange", 1]/result$Sections$Protocol["lADCResolution", 1]
@@ -219,6 +265,7 @@ abf2.load = function ( filename )
             offset[i] = result$Sections$ADC["fInstrumentOffset", i] - result$Sections$ADC["fSignalOffset", i]
         }
     }
+
     # sampling time interval
     result$SampleInterval_s = result$Sections$Protocol["fADCSequenceInterval", 1] * 1e-6
     result$SampleInterval_ms = result$Sections$Protocol["fADCSequenceInterval", 1] * 1e-3
@@ -259,7 +306,7 @@ abf2.load = function ( filename )
                     for (k in 1:numEpi)
                         data[i, j, k] = data[i, j, k] / scale[j] * resol + offset[j]
         result$NumOfEpisodes = numEpi
-        result$ChannelPerEpisode = chPerEpi
+        result$ChannelsPerEpisode = chPerEpi
         result$PointsPerChannel = ptsPerCh
         result$data = data
         
@@ -269,17 +316,14 @@ abf2.load = function ( filename )
         {
           tmp = data[, i, ]
           tmpdf = data.frame(tmp)
-          cols = c()
-          for (j in 1:numEpi)
-          {
-            cols[j] = paste("epi", j, sep = "")
-          }
+          cols = episode.get_names(1:numEpi)
           colnames(tmpdf) = cols
           ByChannel[[i]] = tmpdf
         }
         result$ByChannel = ByChannel
         
         # make a x vector
+        result$X_ticks = 1:ptsPerCh
         result$X_s = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_s)
         result$X_ms = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_ms)
     }
@@ -288,6 +332,7 @@ abf2.load = function ( filename )
         # gap-free
         result$NumOfChannel = ch.Num
         result$PointsPerChannel = result$SectionInfo$Data$llNumEntries / result$NumOfChannel
+        # map rawdata to structured data
         data = array(dim = c(result$PointsPerChannel, result$NumOfChannel))
         idx = 0
         for (i in 1:result$PointsPerChannel)
@@ -302,14 +347,14 @@ abf2.load = function ( filename )
           for (i in 1:result$PointsPerChannel)
             for (j in 1:result$NumOfChannel)
                 data[i, j] = data[i, j] / scale[j] * resol + offset[j]
-        colnames(data) = result$ChannelNameGuess
+
         result$data = data.frame(data)
+        colnames(result$data) <- result$ChannelNameGuess
 
         # figure out some useful information
         timespan = result$PointsPerChannel * result$SampleInterval_s
         result$TimeSpan_s = timespan
         result$TimeSpan_ms = timespan * 1e3
-        
     }
     else
     {
@@ -317,10 +362,10 @@ abf2.load = function ( filename )
     }
 
     close(fp)
-    invisible(result)
+    return(result)
 }
 
-abf2.loadfolder = function ( folder, filename )
+abf2.load_in_folder = function ( folder, filename_list )
 {
   getfilename = function( folder, filename )
   {
@@ -332,69 +377,27 @@ abf2.loadfolder = function ( folder, filename )
     if ( !endsWith(fname, ".abf") )
       fname = paste(fname, ".abf", sep = "")
     
-    invisible(fname)
+    return(fname)
   }
   
-  n = length(filename)
+  n = length(filename_list)
   result = list()
   for (i in 1:n)
   {
-    # filename can be any type ... a vector, a list etc. I'm not sure if [[]] is suitable for all cases
+    # filename_list can be any type ... a vector, a list etc. I'm not sure if [[]] is suitable for all cases
     # Is there any type hint in R?!
-    fname = getfilename(folder, filename[[i]])
+    fname = getfilename(folder, filename_list[[i]])
     result[[i]] = abf2.load(fname)
   }
   
-  invisible(result)
-}
-
-abf2.load.section = function (fp, sect.info, sect.def)
-{
-    ptr = sect.info$uBlockIndex * ABF2.BlockSize
-    if ( ptr == 0 )
-        return(NULL)
-    n = sect.info$llNumEntries
-    m = length(sect.def$field)
-    tmparr = array(dim = c(m, n))
-    for (i in 1:n)
-    {
-        tmp = abf2.struct.read(fp, sect.def, ptr)
-        ptr = ptr + tmp$byte.total
-        for (j in 1:m)
-        {
-            tmparr[j, i] = tmp[[j]]
-        }
-    }
-    result = data.frame(tmparr, row.names = sect.def$field)
-    colnames(result) = c(1:n)
-
-    invisible(result)
-}
-
-abf2.parseStrSect = function ( rawdata )
-{
-    result = list()
-    offset = 45
-    idx = 0
-    st_ptr = offset
-    for (i in offset:length(rawdata))
-    {
-        if (rawdata[[i]] == 0)
-        {
-            idx = idx + 1
-            result[[idx]] = rawToChar(rawdata[st_ptr:(i-1)])
-            st_ptr = i + 1
-        }
-    }
-
-    invisible(result)
+  return(result)
 }
 
 # Block size of ABF file
-ABF2.BlockSize = 512
+.ABF2.BlockSize = 512
 
 # Definition of ABF2 header
-ABF2.Header.field = c("fFileSignature", #0
+.ABF2.Header.field = c("fFileSignature", #0
                       "fFileVersionNumber1", #4
                       "fFileVersionNumber2", #5
                       "fFileVersionNumber3", #6
@@ -416,7 +419,7 @@ ABF2.Header.field = c("fFileSignature", #0
                       "uModifierVersion", #64
                       "uModifierNameIndex", #68
                       "uProtocolPathIndex") #72
-ABF2.Header.ctype = c("string",
+.ABF2.Header.ctype = c("string",
                       "int8",
                       "int8",
                       "int8",
@@ -438,23 +441,23 @@ ABF2.Header.ctype = c("string",
                       "uint32",
                       "uint32",
                       "uint32")
-ABF2.Header.ssize = c(4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-ABF2.Header.def = data.frame(field = ABF2.Header.field,
-                             ctype = ABF2.Header.ctype,
-                             ssize = ABF2.Header.ssize)
+.ABF2.Header.ssize = c(4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+.ABF2.Header.def = data.frame(field = .ABF2.Header.field,
+                             ctype = .ABF2.Header.ctype,
+                             ssize = .ABF2.Header.ssize)
 
 #Definition of section info
-ABF2.SectionInfo.field = c("uBlockIndex",
+.ABF2.SectionInfo.field = c("uBlockIndex",
                            "uBytes",
                            "llNumEntries")
-ABF2.SectionInfo.ctype = c("uint32",
+.ABF2.SectionInfo.ctype = c("uint32",
                            "uint32",
                            "int64")
-ABF2.SectionInfo.ssize = c(0, 0, 0)
-ABF2.SectionInfo.def = data.frame(field = ABF2.SectionInfo.field,
-                                  ctype = ABF2.SectionInfo.ctype,
-                                  ssize = ABF2.SectionInfo.ssize)
-ABF2.SectionInfoList = c("Protocol",
+.ABF2.SectionInfo.ssize = c(0, 0, 0)
+.ABF2.SectionInfo.def = data.frame(field = .ABF2.SectionInfo.field,
+                                  ctype = .ABF2.SectionInfo.ctype,
+                                  ssize = .ABF2.SectionInfo.ssize)
+.ABF2.SectionInfoList = c("Protocol",
                          "ADC",
                          "DAC",
                          "Epoch",
@@ -474,7 +477,7 @@ ABF2.SectionInfoList = c("Protocol",
                          "Stats")
 
 # Sections
-ABF2.Protocol.field = c( "nOperationMode",
+.ABF2.Protocol.field = c( "nOperationMode",
                          "fADCSequenceInterval",
                          "bEnableFileCompression",
                          "sUnused1",
@@ -548,7 +551,7 @@ ABF2.Protocol.field = c( "nOperationMode",
                          "nDigitizerSynchDigitalOuts",
                          "nDigitizerType",
                          "sUnused")
-ABF2.Protocol.ctype = c("int16",
+.ABF2.Protocol.ctype = c("int16",
                         "float",
                         "int8",
                         "unused",
@@ -622,7 +625,7 @@ ABF2.Protocol.ctype = c("int16",
                         "int16",
                         "int16",
                         "unused"  )
-ABF2.Protocol.ssize = c(0, 0, 0, 3,
+.ABF2.Protocol.ssize = c(0, 0, 0, 3,
                         0, 0, 0, 0,
                         0, 0, 0, 0,
                         0, 0, 0, 0,
@@ -641,27 +644,27 @@ ABF2.Protocol.ssize = c(0, 0, 0, 3,
                         0, 0, 0, 0,
                         0, 0, 0, 0,
                         0, 304)
-ABF2.Protocol.def = data.frame(field = ABF2.Protocol.field,
-                               ctype = ABF2.Protocol.ctype,
-                               ssize = ABF2.Protocol.ssize)
+.ABF2.Protocol.def = data.frame(field = .ABF2.Protocol.field,
+                               ctype = .ABF2.Protocol.ctype,
+                               ssize = .ABF2.Protocol.ssize)
 
-ABF2.Math.field = c("nMathEnable", "nMathExpression", "uMathOperatorIndex", "uMathUnitsIndex",
+.ABF2.Math.field = c("nMathEnable", "nMathExpression", "uMathOperatorIndex", "uMathUnitsIndex",
                     "fMathUpperLimit", "fMathLowerLimit", "nMathADCNum1", "nMathADCNum2",
                     "sUnused1", "fMathK1", "fMathK2", "fMathK3",
                     "fMathK4", "fMathK5", "fMathK6", "sUnused2")
-ABF2.Math.ctype = c("int16", "int16", "uint32", "uint32",
+.ABF2.Math.ctype = c("int16", "int16", "uint32", "uint32",
                     "float", "float", "int16", "int16",
                     "unused", "float", "float", "float",
                     "float", "float", "float", "unused")
-ABF2.Math.ssize = c(0, 0, 0, 0,
+.ABF2.Math.ssize = c(0, 0, 0, 0,
                     0, 0, 0, 0,
                     16, 0, 0, 0,
                     0, 0, 0, 64)
-ABF2.Math.def = data.frame(field = ABF2.Math.field,
-                           ctype = ABF2.Math.ctype,
-                           ssize = ABF2.Math.ssize)
+.ABF2.Math.def = data.frame(field = .ABF2.Math.field,
+                           ctype = .ABF2.Math.ctype,
+                           ssize = .ABF2.Math.ssize)
 
-ABF2.ADC.field = c("nADCNum",
+.ABF2.ADC.field = c("nADCNum",
                    "nTelegraphEnable",
                    "nTelegraphInstrument",
                    "fTelegraphAdditGain",
@@ -689,7 +692,7 @@ ABF2.ADC.field = c("nADCNum",
                    "lADCChannelNameIndex",
                    "lADCUnitsIndex",
                    "sUnused")
-ABF2.ADC.ctype = c( "int16",
+.ABF2.ADC.ctype = c( "int16",
                     "int16",
                     "int16",
                     "float",
@@ -717,12 +720,12 @@ ABF2.ADC.ctype = c( "int16",
                     "int32",
                     "int32",
                     "unused")
-ABF2.ADC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 46)
-ABF2.ADC.def = data.frame(field = ABF2.ADC.field,
-                          ctype = ABF2.ADC.ctype,
-                          ssize = ABF2.ADC.ssize)
+.ABF2.ADC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 46)
+.ABF2.ADC.def = data.frame(field = .ABF2.ADC.field,
+                          ctype = .ABF2.ADC.ctype,
+                          ssize = .ABF2.ADC.ssize)
 
-ABF2.DAC.field = c("nDACNum",
+.ABF2.DAC.field = c("nDACNum",
                    "nTelegraphDACScaeFactorEnable",
                    "fInstrumentHoldingLevel",
                    "fDACScaleFactor",
@@ -764,7 +767,7 @@ ABF2.DAC.field = c("nDACNum",
                    "fMembTestPostSettlingTimeMS",
                    "nLeakSubtractADCIndex",
                    "sUnused")
-ABF2.DAC.ctype = c( "int16",
+.ABF2.DAC.ctype = c( "int16",
                     "int16",
                     "float",
                     "float",
@@ -806,12 +809,12 @@ ABF2.DAC.ctype = c( "int16",
                     "float",
                     "int16",
                     "unused" )
-ABF2.DAC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 124)
-ABF2.DAC.def = data.frame(field = ABF2.DAC.field,
-                          ctype = ABF2.DAC.ctype,
-                          ssize = ABF2.DAC.ssize)
+.ABF2.DAC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 124)
+.ABF2.DAC.def = data.frame(field = .ABF2.DAC.field,
+                          ctype = .ABF2.DAC.ctype,
+                          ssize = .ABF2.DAC.ssize)
 
-ABF2.EpochPerDAC.field = c("nEpochNum",
+.ABF2.EpochPerDAC.field = c("nEpochNum",
                            "nDACNum",
                            "nEpochType",
                            "fEpochInitLevel",
@@ -821,7 +824,7 @@ ABF2.EpochPerDAC.field = c("nEpochNum",
                            "lEpochPulsePeriod",
                            "lEpochPulseWidth",
                            "sUnused")
-ABF2.EpochPerDAC.ctype = c( "int16",
+.ABF2.EpochPerDAC.ctype = c( "int16",
                             "int16",
                             "int16",
                             "float",
@@ -831,31 +834,31 @@ ABF2.EpochPerDAC.ctype = c( "int16",
                             "int32",
                             "int32",
                             "unused" )
-ABF2.EpochPerDAC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 18)
-ABF2.EpochPerDAC.def = data.frame(field = ABF2.EpochPerDAC.field,
-                                  ctype = ABF2.EpochPerDAC.ctype,
-                                  ssize = ABF2.EpochPerDAC.ssize)
+.ABF2.EpochPerDAC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 18)
+.ABF2.EpochPerDAC.def = data.frame(field = .ABF2.EpochPerDAC.field,
+                                  ctype = .ABF2.EpochPerDAC.ctype,
+                                  ssize = .ABF2.EpochPerDAC.ssize)
 
-ABF2.Epoch.field = c("nEpochNum",
+.ABF2.Epoch.field = c("nEpochNum",
                      "nDigitalValue",
                      "nDigitalTrainValue",
                      "nAlternateDigitalValue",
                      "nAlternateDigitalTrainValue",
                      "bEpochCompression",
                      "sUnused")
-ABF2.Epoch.ctype = c("int16",
+.ABF2.Epoch.ctype = c("int16",
                      "int16",
                      "int16",
                      "int16",
                      "int16",
                      "int8",
                      "unused")
-ABF2.Epoch.ssize = c(0, 0, 0, 0, 0, 0, 21)
-ABF2.Epoch.def = data.frame(field = ABF2.Epoch.field,
-                            ctype = ABF2.Epoch.ctype,
-                            ssize = ABF2.Epoch.ssize)
+.ABF2.Epoch.ssize = c(0, 0, 0, 0, 0, 0, 21)
+.ABF2.Epoch.def = data.frame(field = .ABF2.Epoch.field,
+                            ctype = .ABF2.Epoch.ctype,
+                            ssize = .ABF2.Epoch.ssize)
 
-ABF2.StatsRegion.field = c("nRegionNum",
+.ABF2.StatsRegion.field = c("nRegionNum",
                            "nADCNum",
                            "nStatsActiveChannels",
                            "nStatsSearchRegionFlags",
@@ -876,7 +879,7 @@ ABF2.StatsRegion.field = c("nRegionNum",
                            "nStatsSearchDAC",
                            "nStatsBaselineDAC",
                            "sUnused")
-ABF2.StatsRegion.ctype = c( "int16",
+.ABF2.StatsRegion.ctype = c( "int16",
                             "int16",
                             "int16",
                             "int16",
@@ -897,24 +900,24 @@ ABF2.StatsRegion.ctype = c( "int16",
                             "int16",
                             "int16",
                             "unused"  )
-ABF2.StatsRegion.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 78)
-ABF2.StatsRegion.def = data.frame(field = ABF2.StatsRegion.field,
-                                  ctype = ABF2.StatsRegion.ctype,
-                                  sszie = ABF2.StatsRegion.ssize)
+.ABF2.StatsRegion.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 78)
+.ABF2.StatsRegion.def = data.frame(field = .ABF2.StatsRegion.field,
+                                  ctype = .ABF2.StatsRegion.ctype,
+                                  sszie = .ABF2.StatsRegion.ssize)
 
-ABF2.UserList.field = c("nListNum",
+.ABF2.UserList.field = c("nListNum",
                         "nULEnable",
                         "nULParamToVary",
                         "nULRepeat",
                         "lULParamValueListIndex",
                         "sUnused")
-ABF2.UserList.ctype = c("int16",
+.ABF2.UserList.ctype = c("int16",
                         "int16",
                         "int16",
                         "int16",
                         "int32",
                         "unused")
-ABF2.UserList.ssize = c(0, 0, 0, 0, 0, 52)
-ABF2.UserList.def = data.frame(field = ABF2.UserList.field,
-                               ctype = ABF2.UserList.ctype,
-                               sszie = ABF2.UserList.ssize)
+.ABF2.UserList.ssize = c(0, 0, 0, 0, 0, 52)
+.ABF2.UserList.def = data.frame(field = .ABF2.UserList.field,
+                               ctype = .ABF2.UserList.ctype,
+                               sszie = .ABF2.UserList.ssize)
