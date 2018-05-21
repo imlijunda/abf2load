@@ -1,15 +1,15 @@
 # Simple support for C typed I/O
-ctypes.supported = c("char", "uchar", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "float", "double", "string", "unused")
+.ctypes.supported = c("char", "uchar", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "float", "double", "string", "unused")
 # and their corresponding size (in bytes)
-ctypes.bytesize = c(1, 1, 1, 1, 2, 2, 4, 4, 8, 4, 8, 0, 0)
-sizeof = list()
-# get size by sizeoff[["uint16"]]
-sizeof = setNames(ctypes.bytesize, ctypes.supported)
+.ctypes.bytesize = c(1, 1, 1, 1, 2, 2, 4, 4, 8, 4, 8, 0, 0)
+.sizeof = list()
+# get size by sizeof[["uint16"]]
+.sizeof = setNames(.ctypes.bytesize, .ctypes.supported)
 
-.abf2.struct.read = function ( fp, struct.def, fp.offset=0 )
+.abf2.struct.read = function ( fp, struct.def, fp.offset = 0 )
 {
     result = list()
-    seek(fp, where=fp.offset, origin = "start")
+    seek(fp, where = fp.offset, origin = "start")
     byteread = 0
     byteskip = 0
     for ( i in 1:length(struct.def$field))
@@ -17,7 +17,7 @@ sizeof = setNames(ctypes.bytesize, ctypes.supported)
         fd = as.character(struct.def$field[i])
         tp = as.character(struct.def$ctype[i])
         ss = as.integer(struct.def$ssize[i])
-        sz = sizeof[[tp]]
+        sz = .sizeof[[tp]]
         if ( startsWith(tp, "int") | (tp == "char") )
         {
             # read a signed integer
@@ -99,31 +99,33 @@ sizeof = setNames(ctypes.bytesize, ctypes.supported)
     {
         tp = as.character(struct.def$ctype[i])
         ss = as.integer(struct.def$ssize[i])
-        size = size + sizeof[[tp]] + ss
+        size = size + .sizeof[[tp]] + ss
     }
 
     return(size)
 }
 
-.abf2.load.section = function ( fp, sect.info, sect.def )
+.abf2.load.section = function( fp, sect.info, sect.def )
 {
   ptr = sect.info$uBlockIndex * .ABF2.BlockSize
-  if ( ptr == 0 )
+  if ( ptr == 0)
     return(NULL)
+  
+  #pre-allocate result data frame
   n = sect.info$llNumEntries
   m = length(sect.def$field)
-  tmparr = array(dim = c(m, n))
+  result = data.frame(matrix(ncol = m, nrow = n))
+  colnames(result) = sect.def$field
+  
   for (i in 1:n)
   {
     tmp = .abf2.struct.read(fp, sect.def, ptr)
     ptr = ptr + tmp$byte.total
     for (j in 1:m)
     {
-      tmparr[j, i] = tmp[[j]]
+      result[i, j] = tmp[[j]]
     }
   }
-  result = data.frame(tmparr, row.names = sect.def$field)
-  colnames(result) = c(1:n)
   
   return(result)
 }
@@ -131,17 +133,39 @@ sizeof = setNames(ctypes.bytesize, ctypes.supported)
 .abf2.parseStrSect = function ( rawdata )
 {
   result = list()
-  offset = 45
+  offset = .ABF2.StringOffset
   idx = 0
-  st_ptr = offset
+  str.ptr = offset
   for (i in offset:length(rawdata))
   {
     if (rawdata[[i]] == 0)
     {
       idx = idx + 1
-      result[[idx]] = rawToChar(rawdata[st_ptr:(i-1)])
-      st_ptr = i + 1
+      result[[idx]] = rawToChar(rawdata[str.ptr:(i-1)])
+      str.ptr = i + 1
     }
+  }
+  
+  return(result)
+}
+
+.abf2.epinames = function ( n )
+{
+  result = c()
+  for (i in 1:n)
+  {
+    result[i] = paste("epi", i, sep="")
+  }
+  
+  return(result)
+}
+
+.abf2.chnames = function ( n )
+{
+  result = c()
+  for (i in 1:n)
+  {
+    result[i] = paste("ch", i, sep="")
   }
   
   return(result)
@@ -184,14 +208,14 @@ abf2.load = function ( filename )
     
     # read strings section
     fptr = result$SectionInfo$Strings$uBlockIndex * .ABF2.BlockSize
-    size = result$SectionInfo$Strings$uBytes
+    str.size = result$SectionInfo$Strings$uBytes
+    str.data = c()
     seek(fp, fptr)
-    data = c()
-    for (i in 1:size)
+    for (i in 1:str.size)
     {
-        data[i] = readBin(fp, what = "raw")
+      str.data[i] = readBin(fp, what = "raw")
     }
-    result$Sections$Strings = .abf2.parseStrSect(data)
+    result$Sections$Strings = .abf2.parseStrSect(str.data)
     if (length(result$Sections$Strings) != result$SectionInfo$Strings$llNumEntries)
     {
         warning("llNumEntries and actual entries read in Strings section do not match. Please check file integrity.")
@@ -242,35 +266,31 @@ abf2.load = function ( filename )
         rawdata[i] = readBin(fp, what = rawdata.type, size = rawdata.size, signed = TRUE)
     }
 
-    # caluclate scaling factors for every channel
+    # caluclate scaling factors for every channel, only happens when recording in integer type
     if (rawdata.type == "integer")
     {
-        resol = result$Sections$Protocol["fADCRange", 1]/result$Sections$Protocol["lADCResolution", 1]
-        scale = c()
-        offset = c()
+        signal.resol = result$Sections$Protocol$fADCRange[1] / result$Sections$Protocol$lADCResolution[1]
+        signal.scale = c()
+        signal.offset = c()
         for (i in 1:ch.Num)
         {
             #instrument scale factor
-            scale[i] = result$Sections$ADC["fInstrumentScaleFactor", i]
+            signal.scale[i] = result$Sections$ADC$fInstrumentScaleFactor[i]
             #signal gain
-            scale[i] = scale[i] * result$Sections$ADC["fSignalGain", i]
+            signal.scale[i] = signal.scale[i] * result$Sections$ADC$fSignalGain[i]
             #programmable gain
-            scale[i] = scale[i] * result$Sections$ADC["fADCProgrammableGain", i]
+            signal.scale[i] = signal.scale[i] * result$Sections$ADC$fADCProgrammableGain[i]
             #telegraph addit gain
-            if (result$Sections$ADC["nTelegraphEnable", i])
+            if (result$Sections$ADC$nTelegraphEnable[i])
             {
-                scale[i] = scale[i] * result$Sections$ADC["fTelegraphAdditGain", i]
+                signal.scale[i] = signal.scale[i] * result$Sections$ADC$fTelegraphAdditGain[i]
             }
             #instrument & signal offset
-            offset[i] = result$Sections$ADC["fInstrumentOffset", i] - result$Sections$ADC["fSignalOffset", i]
+            signal.offset[i] = result$Sections$ADC$fInstrumentOffset[i] - result$Sections$ADC$fSignalOffset[i]
         }
     }
 
-    # sampling time interval
-    result$SampleInterval_s = result$Sections$Protocol["fADCSequenceInterval", 1] * 1e-6
-    result$SampleInterval_ms = result$Sections$Protocol["fADCSequenceInterval", 1] * 1e-3
-
-    op.Mode = result$Sections$Protocol["nOperationMode", 1]
+    op.Mode = result$Sections$Protocol$nOperationMode[1]
     if (op.Mode == 1)
     {
         # event-driven variable-length
@@ -279,14 +299,22 @@ abf2.load = function ( filename )
     else if ((op.Mode == 2) | (op.Mode == 4) | (op.Mode == 5))
     {
         # event-driven fixed-length (2), high-speed oscilloscope (4), waveform fixed-length (5)
+      
+        # sampling time interval
+        result$SampleInterval_s = result$Sections$Protocol$fADCSequenceInterval[1] * 1e-6
+        result$SampleInterval_ms = result$Sections$Protocol$fADCSequenceInterval[1] * 1e-3
+      
         # What we need: points per channel, channels per episode, number of episodes
-        ptsPerCh = result$Sections$Protocol["lNumSamplesPerEpisode", 1] / ch.Num
+        ptsPerCh = result$Sections$Protocol$lNumSamplesPerEpisode[1] / ch.Num
         chPerEpi = ch.Num
-        numEpi = result$Sections$Protocol["lEpisodesPerRun", 1]
+        numEpi = result$Sections$Protocol$lEpisodesPerRun[1]
         # Sanity test
         totPts = result$SectionInfo$Data$llNumEntries
         if (totPts != ptsPerCh * chPerEpi * numEpi)
+        {
+            close(fp)
             stop("The number of recorded data points does not match protocol setting. Please check file integrity.")
+        }
         # now map rawdata to a 3d array
         data = array(dim = c(ptsPerCh, chPerEpi, numEpi))
         # recording order:
@@ -304,25 +332,31 @@ abf2.load = function ( filename )
             for (i in 1:ptsPerCh)
                 for (j in 1:chPerEpi)
                     for (k in 1:numEpi)
-                        data[i, j, k] = data[i, j, k] / scale[j] * resol + offset[j]
+                        data[i, j, k] = data[i, j, k] / signal.scale[j] * signal.resol + signal.offset[j]
         result$NumOfEpisodes = numEpi
         result$ChannelsPerEpisode = chPerEpi
         result$PointsPerChannel = ptsPerCh
         result$data = data
         
         # arrange data by channel
-        ByChannel = list()
+        result$ByChannel = list()
         for (i in 1:chPerEpi)
         {
-          tmp = data[, i, ]
-          tmpdf = data.frame(tmp)
-          cols = episode.get_names(1:numEpi)
-          colnames(tmpdf) = cols
-          ByChannel[[i]] = tmpdf
+          result$ByChannel[[i]] = data.frame(data[, i, ])
+          cols = .abf2.epinames(numEpi)
+          colnames(result$ByChannel[[i]]) = cols
         }
-        result$ByChannel = ByChannel
         
-        # make a x vector
+        # arrange data by episode
+        result$ByEpisode = list()
+        for (i in 1:numEpi)
+        {
+          result$ByEpisode[[i]] = data.frame(data[, , i])
+          cols = .abf2.chnames(chPerEpi)
+          colnames(result$ByEpisode[[i]]) = cols
+        }
+        
+        # make x vectors
         result$X_ticks = 1:ptsPerCh
         result$X_s = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_s)
         result$X_ms = seq(from = 0, length = ptsPerCh, by = result$SampleInterval_ms)
@@ -333,31 +367,35 @@ abf2.load = function ( filename )
         result$NumOfChannel = ch.Num
         result$PointsPerChannel = result$SectionInfo$Data$llNumEntries / result$NumOfChannel
         # map rawdata to structured data
-        data = array(dim = c(result$PointsPerChannel, result$NumOfChannel))
+        result$data = array(dim = c(result$PointsPerChannel, result$NumOfChannel))
         idx = 0
         for (i in 1:result$PointsPerChannel)
           for (j in 1:result$NumOfChannel)
           {
               idx = idx + 1
-              data[i, j] = rawdata[idx]
+              result$data[i, j] = rawdata[idx]
           }
           
         # scale data if needed
         if (rawdata.type == "integer")
           for (i in 1:result$PointsPerChannel)
             for (j in 1:result$NumOfChannel)
-                data[i, j] = data[i, j] / scale[j] * resol + offset[j]
+              result$data[i, j] = result$data[i, j] / signal.scale[j] * signal.resol + signal.offset[j]
 
-        result$data = data.frame(data)
-        colnames(result$data) <- result$ChannelNameGuess
+        result$ByChannel = data.frame(result$data)
+        colnames(result$ByChannel) <- .abf2.chnames(ch.Num)
 
         # figure out some useful information
+        # sampling time interval
+        result$SampleInterval_s = result$Sections$Protocol$fADCSequenceInterval[1] * 1e-6
+        result$SampleInterval_ms = result$Sections$Protocol$fADCSequenceInterval[1] * 1e-3
         timespan = result$PointsPerChannel * result$SampleInterval_s
         result$TimeSpan_s = timespan
         result$TimeSpan_ms = timespan * 1e3
     }
     else
     {
+        close(fp)
         stop("Unknown operation mode.")
     }
 
@@ -384,8 +422,6 @@ abf2.load_in_folder = function ( folder, filename_list )
   result = list()
   for (i in 1:n)
   {
-    # filename_list can be any type ... a vector, a list etc. I'm not sure if [[]] is suitable for all cases
-    # Is there any type hint in R?!
     fname = getfilename(folder, filename_list[[i]])
     result[[i]] = abf2.load(fname)
   }
@@ -395,6 +431,7 @@ abf2.load_in_folder = function ( folder, filename_list )
 
 # Block size of ABF file
 .ABF2.BlockSize = 512
+.ABF2.StringOffset = 45
 
 # Definition of ABF2 header
 .ABF2.Header.field = c("fFileSignature", #0
@@ -442,9 +479,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                       "uint32",
                       "uint32")
 .ABF2.Header.ssize = c(4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-.ABF2.Header.def = data.frame(field = .ABF2.Header.field,
-                             ctype = .ABF2.Header.ctype,
-                             ssize = .ABF2.Header.ssize)
+.ABF2.Header.def = list()
+.ABF2.Header.def$field = .ABF2.Header.field
+.ABF2.Header.def$ctype = .ABF2.Header.ctype
+.ABF2.Header.def$ssize = .ABF2.Header.ssize
 
 #Definition of section info
 .ABF2.SectionInfo.field = c("uBlockIndex",
@@ -454,9 +492,11 @@ abf2.load_in_folder = function ( folder, filename_list )
                            "uint32",
                            "int64")
 .ABF2.SectionInfo.ssize = c(0, 0, 0)
-.ABF2.SectionInfo.def = data.frame(field = .ABF2.SectionInfo.field,
-                                  ctype = .ABF2.SectionInfo.ctype,
-                                  ssize = .ABF2.SectionInfo.ssize)
+.ABF2.SectionInfo.def = list()
+.ABF2.SectionInfo.def$field = .ABF2.SectionInfo.field
+.ABF2.SectionInfo.def$ctype = .ABF2.SectionInfo.ctype
+.ABF2.SectionInfo.def$ssize = .ABF2.SectionInfo.ssize
+
 .ABF2.SectionInfoList = c("Protocol",
                          "ADC",
                          "DAC",
@@ -644,9 +684,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                         0, 0, 0, 0,
                         0, 0, 0, 0,
                         0, 304)
-.ABF2.Protocol.def = data.frame(field = .ABF2.Protocol.field,
-                               ctype = .ABF2.Protocol.ctype,
-                               ssize = .ABF2.Protocol.ssize)
+.ABF2.Protocol.def = list()
+.ABF2.Protocol.def$field = .ABF2.Protocol.field
+.ABF2.Protocol.def$ctype = .ABF2.Protocol.ctype
+.ABF2.Protocol.def$ssize = .ABF2.Protocol.ssize
 
 .ABF2.Math.field = c("nMathEnable", "nMathExpression", "uMathOperatorIndex", "uMathUnitsIndex",
                     "fMathUpperLimit", "fMathLowerLimit", "nMathADCNum1", "nMathADCNum2",
@@ -660,9 +701,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                     0, 0, 0, 0,
                     16, 0, 0, 0,
                     0, 0, 0, 64)
-.ABF2.Math.def = data.frame(field = .ABF2.Math.field,
-                           ctype = .ABF2.Math.ctype,
-                           ssize = .ABF2.Math.ssize)
+.ABF2.Math.def = list()
+.ABF2.Math.def$field = .ABF2.Math.field
+.ABF2.Math.def$ctype = .ABF2.Math.ctype
+.ABF2.Math.def$ssize = .ABF2.Math.ssize
 
 .ABF2.ADC.field = c("nADCNum",
                    "nTelegraphEnable",
@@ -721,9 +763,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                     "int32",
                     "unused")
 .ABF2.ADC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 46)
-.ABF2.ADC.def = data.frame(field = .ABF2.ADC.field,
-                          ctype = .ABF2.ADC.ctype,
-                          ssize = .ABF2.ADC.ssize)
+.ABF2.ADC.def = list()
+.ABF2.ADC.def$field = .ABF2.ADC.field
+.ABF2.ADC.def$ctype = .ABF2.ADC.ctype
+.ABF2.ADC.def$ssize = .ABF2.ADC.ssize
 
 .ABF2.DAC.field = c("nDACNum",
                    "nTelegraphDACScaeFactorEnable",
@@ -810,9 +853,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                     "int16",
                     "unused" )
 .ABF2.DAC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 124)
-.ABF2.DAC.def = data.frame(field = .ABF2.DAC.field,
-                          ctype = .ABF2.DAC.ctype,
-                          ssize = .ABF2.DAC.ssize)
+.ABF2.DAC.def = list()
+.ABF2.DAC.def$field = .ABF2.DAC.field
+.ABF2.DAC.def$ctype = .ABF2.DAC.ctype
+.ABF2.DAC.def$ssize = .ABF2.DAC.ssize
 
 .ABF2.EpochPerDAC.field = c("nEpochNum",
                            "nDACNum",
@@ -835,9 +879,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                             "int32",
                             "unused" )
 .ABF2.EpochPerDAC.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 18)
-.ABF2.EpochPerDAC.def = data.frame(field = .ABF2.EpochPerDAC.field,
-                                  ctype = .ABF2.EpochPerDAC.ctype,
-                                  ssize = .ABF2.EpochPerDAC.ssize)
+.ABF2.EpochPerDAC.def = list()
+.ABF2.EpochPerDAC.def$field = .ABF2.EpochPerDAC.field
+.ABF2.EpochPerDAC.def$ctype = .ABF2.EpochPerDAC.ctype
+.ABF2.EpochPerDAC.def$ssize = .ABF2.EpochPerDAC.ssize
 
 .ABF2.Epoch.field = c("nEpochNum",
                      "nDigitalValue",
@@ -854,9 +899,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                      "int8",
                      "unused")
 .ABF2.Epoch.ssize = c(0, 0, 0, 0, 0, 0, 21)
-.ABF2.Epoch.def = data.frame(field = .ABF2.Epoch.field,
-                            ctype = .ABF2.Epoch.ctype,
-                            ssize = .ABF2.Epoch.ssize)
+.ABF2.Epoch.def = list()
+.ABF2.Epoch.def$field = .ABF2.Epoch.field
+.ABF2.Epoch.def$ctype = .ABF2.Epoch.ctype
+.ABF2.Epoch.def$ssize = .ABF2.Epoch.ssize
 
 .ABF2.StatsRegion.field = c("nRegionNum",
                            "nADCNum",
@@ -901,9 +947,10 @@ abf2.load_in_folder = function ( folder, filename_list )
                             "int16",
                             "unused"  )
 .ABF2.StatsRegion.ssize = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 78)
-.ABF2.StatsRegion.def = data.frame(field = .ABF2.StatsRegion.field,
-                                  ctype = .ABF2.StatsRegion.ctype,
-                                  sszie = .ABF2.StatsRegion.ssize)
+.ABF2.StatsRegion.def = list()
+.ABF2.StatsRegion.def$field = .ABF2.StatsRegion.field
+.ABF2.StatsRegion.def$ctype = .ABF2.StatsRegion.ctype
+.ABF2.StatsRegion.def$ssize = .ABF2.StatsRegion.ssize
 
 .ABF2.UserList.field = c("nListNum",
                         "nULEnable",
@@ -921,3 +968,7 @@ abf2.load_in_folder = function ( folder, filename_list )
 .ABF2.UserList.def = data.frame(field = .ABF2.UserList.field,
                                ctype = .ABF2.UserList.ctype,
                                sszie = .ABF2.UserList.ssize)
+.ABF2.UserList.def = list()
+.ABF2.UserList.def$field = .ABF2.UserList.field
+.ABF2.UserList.def$ctype = .ABF2.UserList.ctype
+.ABF2.UserList.def$ssize = .ABF2.UserList.ssize
