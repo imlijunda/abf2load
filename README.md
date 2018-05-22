@@ -1,10 +1,10 @@
 # abf2load
 Read voltage clamp ABF2 file in R
 
-Currently event-driven fixed-length (mode 2), high-speed oscilloscope (mode 4) and waveform fixed-length (mode 5) are supported. It can also read gap-free (mode 3) data but not fully implemented (data is read into a matrix but not tested, and the protocol is not parsed). The plan is to also implement event-driven variable-length (mode 1), however, I do not have any test data I can look into and work on at the moment. Some sections are not parsed nor read at the moment, because either they are not necessary or I don't know their stored structures. I plan to parse Tag sections in the future since it looks somehow important for some researchers. I also plan to submit to cran if the code is mature enough, so any help is welcomed.
+Currently event-driven fixed-length (mode 2), high-speed oscilloscope (mode 4), waveform fixed-length (mode 5) and gap-free (mode 3) are supported. Event-driven variable-length (mode 1) support is planned but not yet implemented.
 
 ## Usage:
-Simply source the abf2load.R and look into the using_abf2load.R I believe you'll figure out how to use this utility function.
+Simply source the abf2load.R and use abf.load(filename) to load your abf2 data. The returned loaded data is structured list and should be self-explanatory. An example is provided in example/example.R.
 
 ---
-This work is originally made for helping my wife to patch process her voltage clamp data. I rarely program in R so forgive me if some implmentation seems wierd to you. If you have any further knowledge about the file structure, especially in mode 1 and mode 3 feel free to tell me or just raise an issue. Thanks.
+This work was originally made for helping my wife to patch process her voltage clamp data. I rarely program in R so forgive me if some implmentation seems wierd to you. If you have any further knowledge/documents about the file structure, especially in mode 1 feel free to tell me or just raise an issue. Thanks.
