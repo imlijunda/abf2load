@@ -1,6 +1,6 @@
 source("src/abf2load.R")
 
-abfdata = abf2.load("example/example.abf")
+abfdata = abf2.load("data/example.abf")
 
 #access loaded 3-dimensional data (or 2-dimensional in gap-free mode)
 rawdata = abfdata$data
