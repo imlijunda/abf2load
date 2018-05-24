@@ -1,4 +1,4 @@
-source("src/abf2load.R")
+library(abf2load)
 
 abfdata = abf2.load("data/example.abf")
 
