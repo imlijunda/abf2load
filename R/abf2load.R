@@ -171,7 +171,14 @@
   return(result)
 }
 
-# Does R have multiple dispatch?
+#' Load abf2 data file.
+#'
+#' @param filename 
+#'
+#' @return Loaded abf2 data
+#' @export
+#'
+#' @examples data = abf2.load("data/example.abf")
 abf2.load = function ( filename )
 {
     fp = file(filename, "rb")
@@ -403,6 +410,15 @@ abf2.load = function ( filename )
     return(result)
 }
 
+#' Load abf2 data files in a folder
+#'
+#' @param folder 
+#' @param filename_list 
+#'
+#' @return A list of loaded abf2 data.
+#' @export
+#'
+#' @examples data_list = abf2.load("data", c("example.abf", "example2.abf))
 abf2.load_in_folder = function ( folder, filename_list )
 {
   getfilename = function( folder, filename )

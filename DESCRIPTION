@@ -1,0 +1,11 @@
+Package: abf2load
+Title: Load ABF2 Data File
+Version: 0.0.0.9000
+Authors: person("Junda", "Li", email = "imlijunda@gmail.com", role = c("aut", "cre")),
+  person("Yue", "Wu", email = "yue.wu@adelaide.edu.au", role = c("aut", "cre"))
+Description: Load ABF2 data file.
+Depends: R (>= 3.1.0)
+License: The Unlicense
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.0.1
