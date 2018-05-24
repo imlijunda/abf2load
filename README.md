@@ -4,14 +4,18 @@ Read voltage clamp ABF2 file in R
 Currently event-driven fixed-length (mode 2), high-speed oscilloscope (mode 4), waveform fixed-length (mode 5) and gap-free (mode 3) are supported. Event-driven variable-length (mode 1) support is planned but not yet implemented.
 
 ## INSTALL:
+```r
 devtools::install_github("imlijunda/abf2load")
+```
 
 ## USAGE:
+```r
 library(abf2load)
 data = abf2.load("path/to/your/data.abf")
 
 files_to_load = c("exp1.abf", "exp2.abf", "exp3.abf")
 data_list = abf2.load_in_folder("data/folder/path", files_to_load)
+```
 
 You can also find examples in example folder.
 
