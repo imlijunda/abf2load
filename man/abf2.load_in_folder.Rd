@@ -7,8 +7,6 @@
 abf2.load_in_folder(folder, filename_list)
 }
 \arguments{
-\item{folder}{}
-
 \item{filename_list}{}
 }
 \value{
@@ -16,4 +14,7 @@ A list of loaded abf2 data.
 }
 \description{
 Load abf2 data files in a folder
+}
+\examples{
+data_list <- abf2.load("data", c("example.abf", "example2.abf"))
 }

@@ -16,5 +16,5 @@ Loaded abf2 data
 Load abf2 data file.
 }
 \examples{
-data = abf2.load("data/example.abf")
+data <- abf2.load("data/example.abf")
 }
