@@ -1,3 +1,5 @@
+# this package is migrated to Crystal-YWu/abftools
+
 # abf2load
 Read voltage clamp ABF2 file in R
 
